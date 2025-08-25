@@ -9,6 +9,7 @@ type Options struct {
 	CMakeDirs         []string
 	CppExeCandidates  []string
 	MakeExeCandidates []string
+	GoExeCandidates   []string
 	NodeEntries       []string
 	AttachOnDev       bool
 	CargoBinGuess     string

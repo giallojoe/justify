@@ -40,6 +40,7 @@ func main() {
 	cmakeDirs := fs.String("cmake-dirs", "build,.build,cmake-build-debug", "comma-separated CMake build dirs (first used by -B)")
 	cppExe := fs.String("cpp-exes", "app,main,Debug/app,Debug/main", "comma-separated executable names inside CMake dirs")
 	makeExe := fs.String("make-exes", "app,main,a.out", "comma-separated root-level Makefile targets/exes")
+	goExes := fs.String("go-exes", "app,main", "comma-separated Go binary names to try")
 	nodeEntries := fs.String("node-entries", "dist/index.js,dist/server/index.js,dist/server/entry.mjs,build/index.js,.next/standalone/server.js", "comma-separated Node build entry files")
 	attachOnDev := fs.Bool("attach-on-dev", true, "emit attach:node when only dev server is present")
 	cargoBinGuess := fs.String("cargo-bin", guessFolderName(), "fallback cargo bin name (default: folder name)")
@@ -66,6 +67,7 @@ func main() {
 		CppExeCandidates:  render.SplitClean(*cppExe),
 		MakeExeCandidates: render.SplitClean(*makeExe),
 		NodeEntries:       render.SplitClean(*nodeEntries),
+		GoExeCandidates:   render.SplitClean(*goExes),
 		AttachOnDev:       *attachOnDev,
 		CargoBinGuess:     *cargoBinGuess,
 	})

@@ -1,10 +1,13 @@
 name: Release
+
 on:
   push:
     tags:
-      - 'v*'        # e.g. v0.2.0
+      - "v*" # e.g. v0.2.0
+
 permissions:
-  contents: write   # needed to create GitHub Release
+  contents: write # needed to create GitHub Release
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -12,31 +15,40 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - goos: linux   ; goarch: amd64 ; ext: ""
-          - goos: linux   ; goarch: arm64 ; ext: ""
-          - goos: darwin  ; goarch: amd64 ; ext: ""
-          - goos: darwin  ; goarch: arm64 ; ext: ""
-          - goos: windows ; goarch: amd64 ; ext: .exe
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: '>=1.22' }
+          - { goos: linux, goarch: amd64, ext: "" }
+          - { goos: linux, goarch: arm64, ext: "" }
+          - { goos: darwin, goarch: amd64, ext: "" }
+          - { goos: darwin, goarch: arm64, ext: "" }
+          - { goos: windows, goarch: amd64, ext: ".exe" }
 
-      # derive version from tag and embed via -ldflags if you expose it
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
       - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
         run: |
+          set -euo pipefail
           VER="${GITHUB_REF_NAME#v}"
-          OUT="justify-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 \
-            go build -trimpath -ldflags "-s -w -X main.version=${VER}" -o "dist/${OUT}" .
+          OUT="justify-${GOOS}-${GOARCH}${{ matrix.ext }}"
+          mkdir -p dist
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VER}" -o "dist/${OUT}" .
 
       - name: Checksums
         run: |
+          set -euo pipefail
           cd dist
           sha256sum * > checksums.txt
+          cat checksums.txt
 
-      - name: Create Release
-        id: create_release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |

@@ -1,0 +1,27 @@
+# Binaries (built artifacts)
+/justify
+/justify.exe
+/justify-*
+/dist/
+/build/
+
+# Test output
+*.test
+*.out
+*.cover
+*.prof
+*.got
+*.tmp
+
+# Editor / IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Go module cache & vendored deps (if you use `go mod vendor`)
+vendor/

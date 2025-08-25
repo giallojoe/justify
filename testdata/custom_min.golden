@@ -1,0 +1,9 @@
+# tiny custom template to prove overrides flow through
+build:
+	@echo CMAKE=cmake-out
+program:
+	@echo CARGO=crate_name
+node:
+	@echo NODES=dist/server/entry.mjs|
+attach:
+	@echo ATTACH=false

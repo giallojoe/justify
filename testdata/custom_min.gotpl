@@ -1,0 +1,9 @@
+# tiny custom template to prove overrides flow through
+build:
+	@echo CMAKE={{index .CMakeDirs 0}}
+program:
+	@echo CARGO={{.CargoBinGuess}}
+node:
+	@echo NODES={{range .NodeEntries}}{{.}}|{{end}}
+attach:
+	@echo ATTACH={{.AttachOnDev}}

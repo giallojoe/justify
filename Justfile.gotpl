@@ -1,0 +1,80 @@
+# ---------- Standard Justfile (portable build/run/debug) ----------
+set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
+set dotenv-load
+
+build:
+	@([ -f Cargo.toml ] && cargo build) || true
+	@([ -f go.mod ] || ls *.go >/dev/null 2>&1) && go build ./... || true
+	@([ -f CMakeLists.txt ] && { {{- if .CMakeDirs }} {{- range $i, $d := .CMakeDirs }} [ -d "{{$d}}" ] || mkdir -p "{{$d}}"; {{- end }} {{- else }} [ -d build ] || mkdir -p build; {{- end }} cmake -S . -B {{index .CMakeDirs 0}} && cmake --build {{index .CMakeDirs 0}}; }) || true
+	@([ -f Makefile ] && make) || true
+	@([ -f package.json ] && (npm run build || pnpm build || yarn build || true)) || true
+
+program:
+	@bash -eu -o pipefail -c '
+if [ -f Cargo.toml ]; then
+  BIN="${CARGO_BIN:-{{ .CargoBinGuess }}}"
+  [ -x "target/debug/$BIN" ] && { echo "target/debug/$BIN"; exit 0; }
+  [ -d target/debug ] && P=$(find target/debug -maxdepth 1 -type f -perm -111 -printf "%T@ %p\n" 2>/dev/null | sort -nr | head -n1 | cut -d" " -f2-) && [ -n "$P" ] && { echo "$P"; exit 0; }
+fi
+if [ -f go.mod ] || ls *.go >/dev/null 2>&1; then
+  NAME=$(go list -f "{{"{{.Name}}"}}" 2>/dev/null || true)
+  if [ "$NAME" = main ]; then
+    MODBASE=$(basename "$(go list -m -f "{{"{{.Path}}"}}" 2>/dev/null || echo "$PWD")")
+    for c in "$MODBASE" "$(basename "$PWD")" {{- range .GoExeCandidates }} "{{ . }}" {{- end }}; do [ -x "./$c" ] && { echo "./$c"; exit 0; }; done
+    P=$(find . -maxdepth 1 -type f -perm -111 -printf "%T@ %p\n" 2>/dev/null | sort -nr | head -n1 | cut -d" " -f2-)
+    [ -n "$P" ] && { echo "$P"; exit 0; }
+  fi
+fi
+{{- range .CMakeDirs }}
+if [ -d "{{ . }}" ]; then
+  for exe in {{- range $.CppExeCandidates }} "{{$.Join $. . | printf ""}}" {{- end }}; do :; done
+fi
+{{- end }}
+# CMake: try typical names inside each build dir
+for dir in {{- range .CMakeDirs }} "{{ . }}" {{- end }}; do
+  if [ -d "$dir" ]; then
+    for exe in {{- range .CppExeCandidates }} "$dir/{{ . }}" {{- end }}; do
+      [ -x "$exe" ] && { echo "$exe"; exit 0; }
+    done
+    P=$(find "$dir" -type f -perm -111 -printf "%T@ %p\n" 2>/dev/null | sort -nr | head -n1 | cut -d" " -f2-)
+    [ -n "$P" ] && { echo "$P"; exit 0; }
+  fi
+done
+# Makefile root fallbacks
+for exe in {{- range .MakeExeCandidates }} "./{{ . }}" {{- end }}; do
+  [ -x "$exe" ] && { echo "$exe"; exit 0; }
+done
+# Node
+if [ -f package.json ]; then
+  P=$(node -e "try{let p=require('./package.json');console.log(p.main||'')}catch{process.exit(0)}" 2>/dev/null || true)
+  [ -n "$P" ] && [ -f "$P" ] && { echo "$P"; exit 0; }
+  for f in {{- range .NodeEntries }} "{{ . }}" {{- end }}; do
+    [ -f "$f" ] && { echo "$f"; exit 0; }
+  done
+  {{- if .AttachOnDev }}
+  if npm pkg get scripts.dev >/dev/null 2>&1; then echo attach:node; exit 0; fi
+  {{- end }}
+fi
+echo "No program found. Run '\''just build'\''." 1>&2; exit 1
+'
+
+program-kind:
+	@P="$$(just -q program || true)"; \
+	if [ "$${P#attach:}" != "$$P" ]; then echo attach; \
+	elif [[ "$$P" == target/debug/* ]]; then echo rust; \
+	elif [[ "$$P" == ./* ]] && file "$$P" 2>/dev/null | grep -qi "go build"; then echo go; \
+	elif file "$$P" 2>/dev/null | grep -qiE "ELF|Mach-O|PE32"; then echo cpp; \
+	elif [[ "$$P" == *.mjs || "$$P" == *.cjs || "$$P" == *.js || "$$P" == .next/* || "$$P" == dist/* || "$$P" == build/* ]]; then echo node; \
+	else echo unknown; fi
+
+write-program-env:
+	@mkdir -p .vscode
+	@P="$$(just -q program)"; K="$$(just -q program-kind)"; \
+	printf "PROGRAM=%s\nPROGRAM_KIND=%s\n" "$$P" "$$K" > .vscode/.program.env; \
+	echo "Wrote .vscode/.program.env"
+
+run: build
+	@P="$$(just -q program)"; \
+	if [[ "$$P" == attach:* ]]; then echo "Dev server detected. Start it with --inspect and attach your debugger."; exit 0; fi; \
+	exec "$$P"
+

@@ -15,6 +15,7 @@ build:
 program:
 	@echo {{.CargoBinGuess}}
 # node: {{range .NodeEntries}}{{.}};{{end}}
+# go-exes: {{range .GoExeCandidates}}{{.}}|{{end}}
 attach: {{.AttachOnDev}}
 `
 
@@ -26,6 +27,7 @@ func TestRender_MinimalTemplate(t *testing.T) {
 		NodeEntries:       []string{"dist/index.js", "build/index.js"},
 		AttachOnDev:       true,
 		CargoBinGuess:     "mybin",
+		GoExeCandidates:   []string{"foo", "bar"},
 	}
 	out, err := render.Render(minimalTemplate, opts)
 	if err != nil {
@@ -35,60 +37,89 @@ func TestRender_MinimalTemplate(t *testing.T) {
 	mustContain(t, out, "@echo build")
 	mustContain(t, out, "@echo mybin")
 	mustContain(t, out, "node: dist/index.js;build/index.js;")
+	mustContain(t, out, "go-exes: foo|bar|")
 	mustContain(t, out, "attach: true")
 	if strings.Contains(out, "\r\n") {
 		t.Fatalf("expected normalized LF newlines, found CRLF")
 	}
 }
 
+const goExeCandidatesTemplate = `
+program:
+	@bash -eu -o pipefail -c '
+for c in {{- range .GoExeCandidates }} "{{ . }}" {{- end }}; do
+  echo "$c"
+done
+'`
+
+func TestRender_GoExeCandidates_RendersLoop(t *testing.T) {
+	out, err := render.Render(goExeCandidatesTemplate, render.Options{
+		GoExeCandidates:   []string{"bin1", "bin two", "bin3"},
+		CMakeDirs:         []string{"build"},
+		CppExeCandidates:  []string{"app"},
+		MakeExeCandidates: []string{"a.out"},
+		NodeEntries:       []string{"dist/index.js"},
+		AttachOnDev:       true,
+		CargoBinGuess:     "mybin",
+	})
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+	mustContain(t, out, `for c in "bin1" "bin two" "bin3"; do`)
+}
+
 func TestRender_CustomTemplate_Golden(t *testing.T) {
-	td := t.TempDir()
-	// Load template + golden from testdata (so you can tweak examples easily)
-	tmplPath := filepath.Join("..", "..", "testdata", "custom_min.gotpl")
+	tmplPath := filepath.Join("..", "..", "testdata", "custom_min.tmpl")
 	goldPath := filepath.Join("..", "..", "testdata", "custom_min.golden")
 
 	tmplBytes, err := os.ReadFile(tmplPath)
 	if err != nil {
 		t.Fatalf("read tmpl: %v", err)
 	}
-	goldBytes, err := os.ReadFile(goldPath)
+	wantBytes, err := os.ReadFile(goldPath)
 	if err != nil {
 		t.Fatalf("read golden: %v", err)
 	}
 
-	opts := render.Options{
+	got, err := render.Render(string(tmplBytes), render.Options{
 		CMakeDirs:         []string{"cmake-out"},
 		CppExeCandidates:  []string{"app"},
 		MakeExeCandidates: []string{"main"},
 		NodeEntries:       []string{"dist/server/entry.mjs"},
 		AttachOnDev:       false,
 		CargoBinGuess:     "crate_name",
-	}
-	got, err := render.Render(string(tmplBytes), opts)
+		GoExeCandidates:   []string{"foo"},
+	})
 	if err != nil {
 		t.Fatalf("Render error: %v", err)
 	}
 
-	// Optional: write a copy to temp dir for debugging
-	_ = os.WriteFile(filepath.Join(td, "got.just"), []byte(got), 0o644)
-
-	want := string(goldBytes)
-	if got != want {
-		t.Fatalf("mismatch (-got +want):\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	if got != string(wantBytes) {
+		t.Fatalf("mismatch (-got +want):\n--- got ---\n%s\n--- want ---\n%s", got, string(wantBytes))
 	}
 }
 
-func TestSplitClean(t *testing.T) {
-	in := "  a, b ,, c  , "
-	out := render.SplitClean(in)
-	want := []string{"a", "b", "c"}
-	if len(out) != len(want) {
-		t.Fatalf("len mismatch: %v vs %v", out, want)
+func TestRender_GoExeCandidates_Golden(t *testing.T) {
+	tmplPath := filepath.Join("..", "..", "testdata", "go_exes.tmpl")
+	goldPath := filepath.Join("..", "..", "testdata", "go_exes.golden")
+
+	tmplBytes, err := os.ReadFile(tmplPath)
+	if err != nil {
+		t.Fatalf("read tmpl: %v", err)
 	}
-	for i := range want {
-		if out[i] != want[i] {
-			t.Fatalf("index %d: got %q want %q", i, out[i], want[i])
-		}
+	wantBytes, err := os.ReadFile(goldPath)
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+
+	got, err := render.Render(string(tmplBytes), render.Options{
+		GoExeCandidates: []string{"bin1", "bin two", "bin3"},
+	})
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+	if got != string(wantBytes) {
+		t.Fatalf("mismatch (-got +want):\n--- got ---\n%s\n--- want ---\n%s", got, string(wantBytes))
 	}
 }
 

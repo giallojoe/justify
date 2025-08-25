@@ -5,5 +5,7 @@ program:
 	@echo CARGO={{.CargoBinGuess}}
 node:
 	@echo NODES={{range .NodeEntries}}{{.}}|{{end}}
+go:
+	@echo GOEXE={{range .GoExeCandidates}}{{.}}|{{end}}
 attach:
 	@echo ATTACH={{.AttachOnDev}}

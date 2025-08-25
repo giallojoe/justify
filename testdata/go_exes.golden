@@ -1,0 +1,2 @@
+program:
+	@bash -c 'for c in "bin1" "bin two" "bin3"; do echo "$c"; done'

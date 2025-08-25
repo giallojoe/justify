@@ -5,5 +5,7 @@ program:
 	@echo CARGO=crate_name
 node:
 	@echo NODES=dist/server/entry.mjs|
+go:
+	@echo GOEXE=foo|
 attach:
 	@echo ATTACH=false

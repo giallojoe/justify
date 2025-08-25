@@ -18,6 +18,55 @@ ATTACH={{.AttachOnDev}}
 CARGO={{.CargoBinGuess}}
 `
 
+func TestTemplateFor_All(t *testing.T) {
+	if templateFor(tRust) == "" || templateFor(tGo) == "" || templateFor(tCpp) == "" || templateFor(tNode) == "" {
+		t.Fatal("missing embedded template")
+	}
+}
+
+func TestDetectType(t *testing.T) {
+	td := t.TempDir()
+
+	// node
+	os.WriteFile(filepath.Join(td, "package.json"), []byte("{}"), 0o644)
+	if got, _ := detectType(td); got != tNode {
+		t.Fatalf("node: got %s", got)
+	}
+	os.Remove(filepath.Join(td, "package.json"))
+
+	// cpp (CMake)
+	os.WriteFile(filepath.Join(td, "CMakeLists.txt"), []byte(""), 0o644)
+	if got, _ := detectType(td); got != tCpp {
+		t.Fatalf("cpp/cmake: got %s", got)
+	}
+	os.Remove(filepath.Join(td, "CMakeLists.txt"))
+
+	// cpp (Make)
+	os.WriteFile(filepath.Join(td, "Makefile"), []byte(""), 0o644)
+	if got, _ := detectType(td); got != tCpp {
+		t.Fatalf("cpp/make: got %s", got)
+	}
+	os.Remove(filepath.Join(td, "Makefile"))
+
+	// go
+	os.WriteFile(filepath.Join(td, "go.mod"), []byte("module x\n"), 0o644)
+	if got, _ := detectType(td); got != tGo {
+		t.Fatalf("go: got %s", got)
+	}
+	os.Remove(filepath.Join(td, "go.mod"))
+	os.WriteFile(filepath.Join(td, "main.go"), []byte("package main"), 0o644)
+	if got, _ := detectType(td); got != tGo {
+		t.Fatalf("go by *.go: got %s", got)
+	}
+	os.Remove(filepath.Join(td, "main.go"))
+
+	// rust
+	os.WriteFile(filepath.Join(td, "Cargo.toml"), []byte(""), 0o644)
+	if got, _ := detectType(td); got != tRust {
+		t.Fatalf("rust: got %s", got)
+	}
+}
+
 func TestCLI_PrintTemplate_WithFlags_UsesValues(t *testing.T) {
 	t.Parallel()
 

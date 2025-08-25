@@ -7,13 +7,33 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/giallojoe/justify/internal/buildinfo"
 	"github.com/giallojoe/justify/internal/render"
 )
 
-//go:embed Justfile.gotpl
-var defaultTemplate string
+//go:embed templates/Justfile.rust.gotpl
+var tplRust string
+
+//go:embed templates/Justfile.go.gotpl
+var tplGo string
+
+//go:embed templates/Justfile.cpp.gotpl
+var tplCpp string
+
+//go:embed templates/Justfile.node.gotpl
+var tplNode string
+
+type projType string
+
+const (
+	tAuto projType = "auto"
+	tRust projType = "rust"
+	tGo   projType = "go"
+	tCpp  projType = "cpp"
+	tNode projType = "node"
+)
 
 func main() {
 	if len(os.Args) > 1 {
@@ -36,6 +56,7 @@ func main() {
 	force := fs.Bool("force", false, "overwrite output if exists")
 	printTemplate := fs.Bool("print-template", false, "render the template to stdout")
 	templatePath := fs.String("template", "", "path to a custom template (optional)")
+	typ := fs.String("type", "auto", "project type: auto|rust|go|cpp|node")
 
 	cmakeDirs := fs.String("cmake-dirs", "build,.build,cmake-build-debug", "comma-separated CMake build dirs (first used by -B)")
 	cppExe := fs.String("cpp-exes", "app,main,Debug/app,Debug/main", "comma-separated executable names inside CMake dirs")
@@ -53,16 +74,31 @@ func main() {
 		fail(err)
 	}
 
-	tmplStr := defaultTemplate
+	// choose template
+	var tmpl string
 	if *templatePath != "" {
 		b, err := os.ReadFile(*templatePath)
 		if err != nil {
-			fail(fmt.Errorf("reading template: %w", err))
+			fail(fmt.Errorf("read template: %w", err))
 		}
-		tmplStr = string(b)
+		tmpl = string(b)
+	} else {
+		t := projType(*typ)
+		if t == tAuto {
+			d, err := detectType(".")
+			if err != nil {
+				fail(err)
+			}
+			t = d
+			fmt.Fprintf(os.Stderr, "Detected project type: %s\n", t)
+		}
+		tmpl = templateFor(t)
+		if tmpl == "" {
+			fail(fmt.Errorf("no template for type %q", *typ))
+		}
 	}
 
-	rendered, err := render.Render(tmplStr, render.Options{
+	rendered, err := render.Render(tmpl, render.Options{
 		CMakeDirs:         render.SplitClean(*cmakeDirs),
 		CppExeCandidates:  render.SplitClean(*cppExe),
 		MakeExeCandidates: render.SplitClean(*makeExe),
@@ -152,9 +188,47 @@ type noopWriter struct{}
 
 func (noopWriter) Write(p []byte) (int, error) { return len(p), nil }
 
-func exists(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
+func detectType(dir string) (projType, error) {
+	// priority: rust > go > cpp > node
+	if exists(filepath.Join(dir, "Cargo.toml")) {
+		return tRust, nil
+	}
+	if exists(filepath.Join(dir, "go.mod")) || hasExt(dir, ".go") {
+		return tGo, nil
+	}
+	if exists(filepath.Join(dir, "CMakeLists.txt")) || exists(filepath.Join(dir, "Makefile")) {
+		return tCpp, nil
+	}
+	if exists(filepath.Join(dir, "package.json")) {
+		return tNode, nil
+	}
+	return "", fmt.Errorf("unable to detect project type (use --type or --template)")
+}
+
+func templateFor(t projType) string {
+	switch t {
+	case tRust:
+		return tplRust
+	case tGo:
+		return tplGo
+	case tCpp:
+		return tplCpp
+	case tNode:
+		return tplNode
+	default:
+		return ""
+	}
+}
+
+func exists(p string) bool { _, err := os.Stat(p); return err == nil }
+func hasExt(dir, ext string) bool {
+	ents, _ := os.ReadDir(dir)
+	for _, e := range ents {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ext) {
+			return true
+		}
+	}
+	return false
 }
 
 func fail(err error) {

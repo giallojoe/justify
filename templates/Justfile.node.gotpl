@@ -1,0 +1,41 @@
+set shell := ["bash","-eu","-o","pipefail","-c"]
+
+# ---------- Node / Frontend Justfile ----------
+build:
+    npm run build || pnpm build || yarn build
+
+run:
+    if npm pkg get scripts.start >/dev/null 2>&1; then \
+      npm start; \
+    elif npm pkg get scripts.dev >/dev/null 2>&1; then \
+      npm run dev; \
+    else \
+      node .; \
+    fi
+
+test:
+    npm test || true
+
+# Prints the JS entry to run, or "attach:node" when only a dev server exists
+program:
+    @bash -eu -o pipefail -c '
+P=$(node -e "try{let p=require(\"./package.json\");console.log(p.main||\"\")}catch{process.exit(0)}" 2>/dev/null || true)
+if [ -n "$P" ] && [ -f "$P" ]; then
+  echo "$P"
+  exit 0
+fi
+for f in dist/index.js build/index.js dist/server/index.js dist/server/entry.mjs .next/standalone/server.js; do
+  if [ -f "$f" ]; then echo "$f"; exit 0; fi
+done
+# If a dev script exists but no build entry, signal attach
+if npm pkg get scripts.dev >/dev/null 2>&1; then
+  echo "attach:node"
+  exit 0
+fi
+echo "."
+'
+
+write-program-env:
+    @mkdir -p .vscode
+    @P="$$(just -q program)"; printf "PROGRAM=%s\nPROGRAM_KIND=node\n" "$$P" > .vscode/.program.env
+    @echo "Wrote .vscode/.program.env"

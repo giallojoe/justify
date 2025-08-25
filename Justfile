@@ -1,0 +1,34 @@
+set shell := ["bash","-eu","-o","pipefail","-c"]
+
+# ---------- Go Justfile ----------
+build:
+    go build ./...
+
+run:
+    go run .
+
+test:
+    go test ./...
+
+tidy:
+    go mod tidy
+
+# Prints the path of the built binary to run (if present), otherwise "."
+program:
+    @bash -eu -o pipefail -c '
+MODBASE=$(basename "$(go list -m -f '{{.Path}}' 2>/dev/null ||
+for c in "$MODBASE" "$(basename "$PWD")" app main; do
+  if [ -x "./$c" ]; then
+    echo "./$c"
+    exit 0
+  fi
+done
+# pick newest executable in CWD as a fallback
+P=$(find . -maxdepth 1 -type f -perm -111 -printf "%T@ %p\n" 2>/dev/null | sort -nr | head -n1 | cut -d" " -f2-)
+if [ -n "$P" ]; then echo "$P"; else echo "."; fi
+'
+
+write-program-env:
+    @mkdir -p .vscode
+    @P="$$(just -q program)"; printf "PROGRAM=%s\nPROGRAM_KIND=go\n" "$$P" > .vscode/.program.env
+    @echo "Wrote .vscode/.program.env"

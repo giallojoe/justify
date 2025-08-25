@@ -7,15 +7,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
+	"github.com/giallojoe/justify/internal/buildinfo"
 	"github.com/giallojoe/justify/internal/render"
 )
 
 //go:embed Justfile.gotpl
 var defaultTemplate string
-
-const version = "0.3.0"
 
 func main() {
 	if len(os.Args) > 1 {
@@ -27,7 +25,7 @@ func main() {
 			fmt.Print(manualText())
 			return
 		case "version", "-v", "--version":
-			fmt.Println("justify", version)
+			fmt.Println("justify", buildinfo.Version)
 			return
 		}
 	}
@@ -161,8 +159,6 @@ func fail(err error) {
 	fmt.Fprintln(os.Stderr, "error:", err)
 	os.Exit(1)
 }
-
-func normalizeLF(s string) string { return strings.ReplaceAll(s, "\r\n", "\n") }
 
 func guessFolderName() string {
 	wd, err := os.Getwd()

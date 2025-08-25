@@ -15,7 +15,7 @@ import (
 //go:embed Justfile.gotpl
 var defaultTemplate string
 
-const version = "0.2.0"
+const version = "0.3.0"
 
 func main() {
 	if len(os.Args) > 1 {

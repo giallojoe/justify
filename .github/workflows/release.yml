@@ -24,7 +24,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22.x"
+          go-version: "1.24.x"
 
       - name: Build
         env:
@@ -36,7 +36,7 @@ jobs:
           MOD=$(go list -m -f '{{.Path}}')
           BIN="justify-${GOOS}-${GOARCH}${{ matrix.ext }}"
           mkdir -p dist
-          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X ${MOD}/internal/buildinfo.Version=${VER}" -o "dist/${BIN}" .
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X ${MOD}/justify.Version=${VER}" -o "dist/${BIN}" .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

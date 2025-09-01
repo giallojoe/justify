@@ -1,2 +1,0 @@
-program:
-	@bash -c 'for c in {{- range .GoExeCandidates }} "{{ . }}" {{- end }}; do echo "$c"; done'

@@ -36,7 +36,7 @@ jobs:
           MOD=$(go list -m -f '{{.Path}}')
           BIN="justify-${GOOS}-${GOARCH}${{ matrix.ext }}"
           mkdir -p dist
-          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X ${MOD}/justify.Version=${VER}" -o "dist/${BIN}" .
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X ${MOD}/justify.Version=${VER}" -o "dist/${BIN}" ./cmd/justify
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
